@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Artifact System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">🤖 RAG Artifact System</h1>
+            <p class="text-gray-600">Chat with AI and generate interactive artifacts in real-time</p>
+        </div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Chat Interface -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800">💬 Chat Interface</h2>
+                    <div class="flex items-center gap-2">
+                        <div id="connection-status" class="w-3 h-3 bg-green-500 rounded-full"></div>
+                        <span class="text-sm text-gray-600">Connected</span>
+                    </div>
+                </div>
+                
+                <div id="chat-messages" class="h-96 overflow-y-auto bg-gray-50 rounded-lg p-4 mb-4 border">
+                    <!-- Messages will be inserted here -->
+                </div>
+                
+                <div class="flex gap-2">
+                    <input 
+                        type="text" 
+                        id="message-input" 
+                        placeholder="Ask me to create HTML, React components, calculators, or show code..." 
+                        class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                    <button 
+                        id="send-button" 
+                        class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Send
+                    </button>
+                </div>
+                
+                <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h3 class="font-semibold text-blue-800 mb-2">💡 Try these commands:</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                        <button class="text-left p-2 bg-white rounded border hover:bg-blue-50 transition-colors" onclick="sendSampleMessage('Create HTML page')">
+                            🌐 "Create HTML page"
+                        </button>
+                        <button class="text-left p-2 bg-white rounded border hover:bg-blue-50 transition-colors" onclick="sendSampleMessage('Make a React component')">
+                            ⚛️ "Make a React component"
+                        </button>
+                        <button class="text-left p-2 bg-white rounded border hover:bg-blue-50 transition-colors" onclick="sendSampleMessage('Build a calculator')">
+                            🧮 "Build a calculator"
+                        </button>
+                        <button class="text-left p-2 bg-white rounded border hover:bg-blue-50 transition-colors" onclick="sendSampleMessage('Show me some code')">
+                            💻 "Show me some code"
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Artifact Display -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800">🎨 Generated Artifacts</h2>
+                    <button id="clear-artifacts" class="text-red-500 hover:text-red-700 text-sm font-medium">
+                        Clear All
+                    </button>
+                </div>
+                <div id="artifacts-container" class="space-y-4">
+                    <div class="text-gray-500 text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
+                        <div class="text-4xl mb-4">🎯</div>
+                        <p class="text-lg font-medium mb-2">No artifacts yet</p>
+                        <p class="text-sm">Start a conversation to generate interactive content!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="mt-12 text-center text-gray-500 text-sm">
+            <p>RAG Artifact System - Powered by dual-service architecture</p>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const messagesContainer = document.getElementById('chat-messages');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const artifactsContainer = document.getElementById('artifacts-container');
+        const connectionStatus = document.getElementById('connection-status');
+        const clearArtifactsBtn = document.getElementById('clear-artifacts');
+
+        let isLoading = false;
+        let artifactCount = 0;
+
+        // Connection status handling
+        socket.on('connect', () => {
+            connectionStatus.className = 'w-3 h-3 bg-green-500 rounded-full';
+            connectionStatus.nextElementSibling.textContent = 'Connected';
+        });
+
+        socket.on('disconnect', () => {
+            connectionStatus.className = 'w-3 h-3 bg-red-500 rounded-full';
+            connectionStatus.nextElementSibling.textContent = 'Disconnected';
+        });
+
+        function addMessage(message, isUser = false, isSystem = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `mb-4 ${isUser ? 'text-right' : 'text-left'}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const bgColor = isUser ? 'bg-blue-500 text-white' : isSystem ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' : 'bg-gray-200 text-gray-800';
+            const icon = isUser ? '👤' : isSystem ? '⚠️' : '🤖';
+            
+            messageDiv.innerHTML = `
+                <div class="inline-block px-4 py-3 rounded-lg max-w-md ${bgColor} shadow-sm">
+                    <div class="flex items-start gap-2">
+                        <span class="text-sm">${icon}</span>
+                        <div class="flex-1">
+                            <div class="whitespace-pre-wrap">${message}</div>
+                            <div class="text-xs opacity-70 mt-1">${timestamp}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function addLoadingMessage() {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'loading-message';
+            loadingDiv.className = 'mb-4 text-left';
+            loadingDiv.innerHTML = `
+                <div class="inline-block px-4 py-3 rounded-lg bg-gray-200 text-gray-800 shadow-sm">
+                    <div class="flex items-center gap-2">
+                        <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                        <span>AI is thinking...</span>
+                    </div>
+                </div>
+            `;
+            messagesContainer.appendChild(loadingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function removeLoadingMessage() {
+            const loadingMsg = document.getElementById('loading-message');
+            if (loadingMsg) {
+                loadingMsg.remove();
+            }
+        }
+
+        function displayArtifact(artifact) {
+            const artifactDiv = document.createElement('div');
+            artifactDiv.className = 'border border-gray-300 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow';
+            
+            const typeIcon = artifact.type.includes('react') ? '⚛️' : artifact.type.includes('html') ? '🌐' : '💻';
+            const typeName = artifact.type.includes('react') ? 'React Component' : 
+                           artifact.type.includes('html') ? 'HTML Page' : 'Code';
+            
+            artifactDiv.innerHTML = `
+                <div class="bg-gray-100 px-4 py-3 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg">${typeIcon}</span>
+                        <div>
+                            <div class="font-medium text-gray-700">${typeName}</div>
+                            <div class="text-xs text-gray-500">ID: ${artifact.id}</div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openInNewTab('http://localhost:3001/artifacts/${artifact.id}.html')" 
+                                class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                            📱 Open Full
+                        </button>
+                        <button onclick="this.closest('.border').remove(); updateArtifactCount(-1)" 
+                                class="text-red-500 hover:text-red-700 text-sm font-medium">
+                            ✕
+                        </button>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <iframe 
+                        src="http://localhost:3001/artifacts/${artifact.id}.html" 
+                        class="w-full h-64 border-0 rounded"
+                        sandbox="allow-scripts allow-same-origin allow-forms"
+                        onload="this.style.opacity=1"
+                        style="opacity:0; transition: opacity 0.3s;"
+                    ></iframe>
+                </div>
+            `;
+            
+            // Clear placeholder and add artifact
+            if (artifactsContainer.querySelector('.text-gray-500')) {
+                artifactsContainer.innerHTML = '';
+            }
+            artifactsContainer.appendChild(artifactDiv);
+            updateArtifactCount(1);
+        }
+
+        function updateArtifactCount(change) {
+            artifactCount += change;
+            if (artifactCount <= 0) {
+                artifactsContainer.innerHTML = `
+                    <div class="text-gray-500 text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
+                        <div class="text-4xl mb-4">🎯</div>
+                        <p class="text-lg font-medium mb-2">No artifacts yet</p>
+                        <p class="text-sm">Start a conversation to generate interactive content!</p>
+                    </div>
+                `;
+                artifactCount = 0;
+            }
+        }
+
+        function openInNewTab(url) {
+            window.open(url, '_blank');
+        }
+
+        function sendMessage(message = null) {
+            const messageText = message || messageInput.value.trim();
+            if (!messageText || isLoading) return;
+
+            isLoading = true;
+            sendButton.disabled = true;
+            sendButton.textContent = 'Sending...';
+
+            addMessage(messageText, true);
+            if (!message) messageInput.value = '';
+            addLoadingMessage();
+
+            // Send via HTTP API
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: messageText, userId: 'user_' + Date.now() })
+            })
+            .then(response => response.json())
+            .then(data => {
+                removeLoadingMessage();
+                
+                if (data.success) {
+                    addMessage(data.response);
+                    
+                    // Display any artifacts
+                    if (data.artifacts && data.artifacts.length > 0) {
+                        data.artifacts.forEach(artifact => {
+                            displayArtifact(artifact);
+                        });
+                    }
+                } else {
+                    addMessage('❌ Error: ' + data.error, false, true);
+                }
+            })
+            .catch(error => {
+                removeLoadingMessage();
+                addMessage('❌ Network error: ' + error.message, false, true);
+                console.error('Chat error:', error);
+            })
+            .finally(() => {
+                isLoading = false;
+                sendButton.disabled = false;
+                sendButton.textContent = 'Send';
+                messageInput.focus();
+            });
+        }
+
+        function sendSampleMessage(message) {
+            messageInput.value = message;
+            sendMessage();
+        }
+
+        // Event listeners
+        sendButton.addEventListener('click', () => sendMessage());
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        clearArtifactsBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear all artifacts?')) {
+                artifactsContainer.innerHTML = `
+                    <div class="text-gray-500 text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
+                        <div class="text-4xl mb-4">🎯</div>
+                        <p class="text-lg font-medium mb-2">No artifacts yet</p>
+                        <p class="text-sm">Start a conversation to generate interactive content!</p>
+                    </div>
+                `;
+                artifactCount = 0;
+            }
+        });
+
+        // Initialize
+        messageInput.focus();
+        addMessage("👋 Welcome to the RAG Artifact System! I can create interactive HTML pages, React components, calculators, and display code examples. What would you like me to build for you?");
+    </script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+services:
+  chat-app:
+    build: 
+      context: ./chat-app
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - artifact-service
+    environment:
+      - ARTIFACT_SERVICE_URL=http://artifact-service:3001
+      - NODE_ENV=development
+    volumes:
+      - ./chat-app:/app
+      - /app/node_modules
+    networks:
+      - rag-network
+
+  artifact-service:
+    build: 
+      context: ./artifact-service
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./artifact-service:/app
+      - /app/node_modules
+      - artifact-data:/app/artifacts
+    environment:
+      - NODE_ENV=development
+    networks:
+      - rag-network
+
+volumes:
+  artifact-data:
+    driver: local
+
+networks:
+  rag-network:
+    driver: bridge
