@@ -260,5 +260,3 @@ For issues and questions:
 - Check the troubleshooting section
 - Review the logs
 - Open an issue on GitHub
-
-Tejus Gupta <tejus3131>
